@@ -13,7 +13,24 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
     _debugOwner?: FiberNode
   }
 
-  const getFallbackDebugSourceFromElement = (element: HTMLElement, deep: number, debugSourceList: DebugSource[]) => {
+  function findNearestVueComponentWithFileDOM(el) {
+    let currentEl = el
+    while (currentEl) {
+      const instance = currentEl.__vueParentComponent || currentEl.__vue__
+      if (instance && instance.type && instance.type.__file) {
+        return instance
+      }
+
+      currentEl = currentEl.parentNode
+    }
+    return null
+  }
+
+  const getFallbackDebugSourceFromElement = (
+    element: HTMLElement,
+    deep: number,
+    debugSourceList: DebugSource[]
+  ) => {
     const parentElement = element.parentElement
     if (element.tagName === "HTML" || parentElement === null) {
       console.warn("Couldn't find a React instance for the element")
@@ -35,14 +52,18 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
         return debugSourceList
       }
     }
-    return getFallbackDebugSourceFromElement(parentElement, deep, debugSourceList)
+    return getFallbackDebugSourceFromElement(
+      parentElement,
+      deep,
+      debugSourceList
+    )
   }
 
   const getFallbackDebugSource = (
     fiberNodeInstance: FiberNode,
     element: HTMLElement,
     deep: number,
-    debugSourceList: DebugSource[],
+    debugSourceList: DebugSource[]
   ) => {
     if (fiberNodeInstance?._debugOwner) {
       if (fiberNodeInstance._debugOwner._debugSource) {
@@ -50,9 +71,19 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
         if (debugSourceList.length >= deep) {
           return debugSourceList
         }
-        return getFallbackDebugSource(fiberNodeInstance._debugOwner, element, deep, debugSourceList)
+        return getFallbackDebugSource(
+          fiberNodeInstance._debugOwner,
+          element,
+          deep,
+          debugSourceList
+        )
       } else {
-        return getFallbackDebugSource(fiberNodeInstance._debugOwner, element, deep, debugSourceList)
+        return getFallbackDebugSource(
+          fiberNodeInstance._debugOwner,
+          element,
+          deep,
+          debugSourceList
+        )
       }
     } else {
       return getFallbackDebugSourceFromElement(element, deep, debugSourceList)
@@ -66,12 +97,20 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
       element["__vueParentComponent"] &&
       element["__vueParentComponent"]?.type
     ) {
-      const { __file } = element["__vueParentComponent"]?.type ?? {}
-      return [{
-        fileName: __file,
-        lineNumber: 1,
-        columnNumber: 1
-      }]
+      const vueComponent = findNearestVueComponentWithFileDOM(element)
+      const { __file } = vueComponent?.type ?? {}
+
+      // @ts-ignore
+      const fileName = window.env.__dirname
+        ? window.env.__dirname + "/" + __file
+        : __file
+      return [
+        {
+          fileName: fileName,
+          lineNumber: 1,
+          columnNumber: 1
+        }
+      ]
     }
     for (const key in element) {
       if (
@@ -86,12 +125,7 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
       return [_debugSource]
     }
     const debugSourceList: DebugSource[] = []
-    getFallbackDebugSource(
-      fiberNodeInstance,
-      element,
-      deep,
-      debugSourceList,
-    )
+    getFallbackDebugSource(fiberNodeInstance, element, deep, debugSourceList)
     return debugSourceList
   }
 
@@ -100,7 +134,7 @@ const openComponentInEditor = (tabId: number, maxDeep = 3) => {
     if (event.altKey) {
       event.stopPropagation()
       event.preventDefault()
-      const deep = event.ctrlKey ? maxDeep : 1;
+      const deep = event.ctrlKey ? maxDeep : 1
       const { target } = event
       if (target instanceof HTMLElement) {
         const debugSource: DebugSource[] = getDebugSource(target, deep)
